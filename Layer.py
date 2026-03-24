@@ -19,6 +19,87 @@ class Layer():
     def backward(self, *grads):
         raise NotImplementedError
 
+class Activation(Layer):
+    def __init__(self, name):
+        super().__init__(name)
+        self.inputs = None
+
+    def forward(self, inputs):
+        self.inputs = inputs
+        return self.func(inputs)
+
+    def backward(self, grad):
+        return self.derivative_func(self.inputs) * grad
+
+    def func(self, x):
+        raise NotImplementedError
+
+    def derivative_func(self, x):
+        raise NotImplementedError
+
+class Net(object):
+    def __init__(self, layers):
+        self.layers = layers
+
+    def forward(self, inputs):
+        for layer in self.layers:
+            inputs = layer.forward(inputs)
+        return inputs
+
+    def backward(self, grad):
+        all_grads = []
+        for layer in self.layers:
+            grad = layer.backward(grad)
+            all_grads.append(layer.grads)
+
+    def get_params_and_grads(self):
+        for layer in self.layers:
+            yield layer.params, layer.grads
+
+    def get_params(self):
+        return [layer.params for layer in self.layers]
+
+    def set_params(self, params):
+        for i, layer in enumerate(self.layers):
+            for key in layer.params.keys():
+                layer.params[key] = params[i][key]
+
+class BaseLoss(object):
+    def loss(self, pred, actual):
+        raise NotImplementedError
+
+    def grad(self, pred, actual):
+        raise NotImplementedError
+
+class BaseOptimizer(object):
+    def __init__(self, lr, weight_decay=0):
+        self.lr = lr
+        self.weight_decay = weight_decay
+
+    def compute_step(self, grads, params):
+        step = list()
+        # flatten grads 和 params
+        flatten_grads = np.concatenate(
+            [np.ravel(v) for grad in grads for v in grad.values()]
+        )
+        flatten_step = self._compute_step(flatten_grads)
+
+        # reshape gradients
+        p = 0
+        for param in params:
+            layer = dict()
+            for k, v in param.items():
+                block = np.prod(v.shape)
+                _step = flatten_step[p:p+block].reshape(v.shape)
+                _step -= self.weight_decay * v
+                layer[k] = _step
+                p += block
+            step.append(layer)
+        return step
+
+    def _compute_step(self, grad):
+        raise NotImplementedError
+
 # 之后我们就可以在这个基类的基础上实现各种各样的网络层了，比如全连接层，卷积层，池化层等等。
 class Linear(Layer):
     def __init__(self, name, in_features, out_features):
