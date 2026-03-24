@@ -101,6 +101,30 @@ class BaseOptimizer(object):
         raise NotImplementedError
 
 # 之后我们就可以在这个基类的基础上实现各种各样的网络层了，比如全连接层，卷积层，池化层等等。
+class Dense(Layer):
+    def __init__(self, in_features, out_features,
+                 w_init = np.random.random, b_init = np.zeros):
+        super(Dense, self).__init__("Linear")
+        self.params = {
+            "w": w_init([in_features, out_features]),
+            "b": b_init([1, out_features])
+        }
+
+    def forward(self, inputs:np.ndarray):
+        # 将 inputs 保证为二维 (batch, in_features)
+        self.inputs = np.atleast_2d(inputs)
+
+        return self.inputs @ self.params["w"] + self.params["b"]
+
+    def backward(self, grad:np.ndarray):
+        # 保证 grad 为二维：(batch, out_features)
+        grad_arr = np.atleast_2d(grad)
+
+        self.grads["w"] = self.inputs.T @ grad_arr
+        self.grads["b"] = np.sum(grad_arr, axis=0, keepdims=True)
+
+        return grad_arr @ self.params["w"].T
+
 class Linear(Layer):
     def __init__(self, name, in_features, out_features):
         super().__init__(name)
