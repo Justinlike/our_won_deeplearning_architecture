@@ -37,69 +37,6 @@ class Activation(Layer):
     def derivative_func(self, x):
         raise NotImplementedError
 
-class Net(object):
-    def __init__(self, layers):
-        self.layers = layers
-
-    def forward(self, inputs):
-        for layer in self.layers:
-            inputs = layer.forward(inputs)
-        return inputs
-
-    def backward(self, grad):
-        all_grads = []
-        for layer in self.layers:
-            grad = layer.backward(grad)
-            all_grads.append(layer.grads)
-
-    def get_params_and_grads(self):
-        for layer in self.layers:
-            yield layer.params, layer.grads
-
-    def get_params(self):
-        return [layer.params for layer in self.layers]
-
-    def set_params(self, params):
-        for i, layer in enumerate(self.layers):
-            for key in layer.params.keys():
-                layer.params[key] = params[i][key]
-
-class BaseLoss(object):
-    def loss(self, pred, actual):
-        raise NotImplementedError
-
-    def grad(self, pred, actual):
-        raise NotImplementedError
-
-class BaseOptimizer(object):
-    def __init__(self, lr, weight_decay=0):
-        self.lr = lr
-        self.weight_decay = weight_decay
-
-    def compute_step(self, grads, params):
-        step = list()
-        # flatten grads 和 params
-        flatten_grads = np.concatenate(
-            [np.ravel(v) for grad in grads for v in grad.values()]
-        )
-        flatten_step = self._compute_step(flatten_grads)
-
-        # reshape gradients
-        p = 0
-        for param in params:
-            layer = dict()
-            for k, v in param.items():
-                block = np.prod(v.shape)
-                _step = flatten_step[p:p+block].reshape(v.shape)
-                _step -= self.weight_decay * v
-                layer[k] = _step
-                p += block
-            step.append(layer)
-        return step
-
-    def _compute_step(self, grad):
-        raise NotImplementedError
-
 # 之后我们就可以在这个基类的基础上实现各种各样的网络层了，比如全连接层，卷积层，池化层等等。
 class Dense(Layer):
     def __init__(self, in_features, out_features,
@@ -132,8 +69,78 @@ class Linear(Layer):
         self.out_features = out_features
         # 初始化权重和偏置
         self.params = np.random.randn(out_features, in_features)
+        self.bias = np.random.randn(out_features)
         self.grads = np.zeros_like(self.params)
 
     def forward(self, inputs):
         self.inputs = inputs
-        return self.params @ inputs
+        return self.params @ inputs + self.bias
+
+    def backward(self, grad_output):
+        # 计算权重梯度
+        self.grads = self.params @ grad_output + self.bias
+        # 计算输入梯度
+        grad_input = self.params.T @ grad_output
+        return grad_input
+
+class Conv2d(Layer):
+    def __init__(self, name, in_channesl, out_channesl, kernel_size, stride=1, padding=0):
+        super().__init__(name)
+        self.in_channesl = in_channesl
+        self.out_channesl = out_channesl
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        # 初始化卷积核权重和偏置
+        self.params = np.random.randn(out_channesl, in_channesl, kernel_size, kernel_size)
+        self.grads = np.zeros_like(self.params)
+        self.bias = np.random.randn(out_channesl)
+
+    def forward(self, inputs):
+        self.inputs = np.atleast_3d(inputs) # 确保输入为三维 (batch, in_channels, height, width)
+        # 卷积操作的前向传播实现
+
+        pass
+
+    def backward(self, grad_output):
+        # 卷积操作的反向传播实现
+        pass
+
+class Pool2d(Layer):
+    def __init__(self, name, kernel_size, stride=1, padding=0):
+        super().__init__(name)
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+
+    def forward(self, inputs):
+        # 池化操作的前向传播实现
+        pass
+
+    def backward(self, grad_output):
+        # 池化操作的反向传播实现
+        pass
+
+class Sigmoid(Layer):
+    def __init__(self, name, x):
+        super().__init__(name)
+
+    def forward(self, x):
+        return 1 / (1 + np.exp(-self.x))
+
+    def backward(self, grad_output):
+        return  self.forward() * (1 - self.forward()) * grad_output
+
+
+
+class ReLU(Activation):
+    def __init__(self):
+        super().__init__("Relu")
+
+    def func(self, x):
+        return np.maximum(0, x)
+
+    def derivative_func(self, x):
+        return x > 0.0
+
+
